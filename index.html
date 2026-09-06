@@ -1,0 +1,74 @@
+-- Script ใน ServerScriptService (Roblox)
+local DataStoreService = game:GetService("DataStoreService")
+local KeyStore = DataStoreService:GetDataStore("StarkKeySystem_v1")
+
+-- ฟังก์ชันสำหรับบันทึกคีย์ใหม่ลง DataStore
+local function saveKey(key, expireTimestamp)
+    local success, err = pcall(function()
+        KeyStore:SetAsync(key, {
+            expire = expireTimestamp,
+            created = os.time()
+        })
+    end)
+    if not success then
+        warn("บันทึกคีย์ไม่สำเร็จ: " .. tostring(err))
+    end
+end
+
+-- ฟังก์ชันตรวจสอบและลบคีย์ที่หมดอายุแล้วทิ้ง
+local function cleanupExpiredKeys(keysList)
+    local currentTime = os.time()
+    
+    for _, key in ipairs(keysList) do
+        local success, data = pcall(function()
+            return KeyStore:GetAsync(key)
+        end)
+        
+        if success and data then
+            -- ถ้าเวลาปัจจุบันเกินเวลาหมดอายุ (และไม่ใช่คีย์ถาวร 9999)
+            if data.expire ~= "permanent" and currentTime > data.expire then
+                -- ลบคีย์ออกจาก DataStore ทิ้งทันที
+                pcall(function()
+                    KeyStore:RemoveAsync(key)
+                end)
+                print("ลบคีย์ที่หมดอายุแล้ว: " .. key)
+            end
+        end
+    end
+end
+
+-- ตัวอย่างการคำนวณวันหมดอายุเมื่อสร้างคีย์ใหม่
+local function createNewKeyWithDuration(key, duration)
+    local currentTime = os.time()
+    local expireTime = 0
+
+    if duration == "1_hour" then
+        expireTime = currentTime + (1 * 60 * 60)
+    elseif duration == "1_day" then
+        expireTime = currentTime + (1 * 24 * 60 * 60)
+    elseif duration == "3_days" then
+        expireTime = currentTime + (3 * 24 * 60 * 60)
+    elseif duration == "7_days" then
+        expireTime = currentTime + (7 * 24 * 60 * 60)
+    elseif duration == "10_days" then
+        expireTime = currentTime + (10 * 24 * 60 * 60)
+    elseif duration == "30_days" then
+        expireTime = currentTime + (30 * 24 * 60 * 60)
+    elseif duration == "permanent" then
+        expireTime = "permanent" -- ใช้เครื่องหมายระบุว่าถาวร
+    else
+        expireTime = currentTime + (1 * 24 * 60 * 60)
+    end
+
+    saveKey(key, expireTime)
+    print("สร้างและบันทึกคีย์สำเร็จ: " .. key)
+end
+
+-- รันลูปเช็คคีย์หมดอายุทุกๆ 1 ชั่วโมงอัตโนมัติ
+task.spawn(function()
+    while true do
+        task.wait(3600) -- เช็คทุก 1 ชั่วโมง
+        -- หมายเหตุ: ในการใช้งานจริงคุณต้องมี Table เก็บรายชื่อ Key ทั้งหมดที่เคยสร้างไว้เพื่อนำมาวนลูปเช็ค
+        -- เช่น ดึงมาจาก ListKeysAsync ของ DataStore
+    end
+end)
